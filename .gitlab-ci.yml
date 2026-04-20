@@ -1,0 +1,116 @@
+stages:
+  - build
+  - up
+  - test
+  - chaos_test
+  - verify
+  - observe
+  - recovery
+  - report
+  - cleanup
+
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+
+# 🏗️ Build
+build:
+  stage: build
+  script:
+    - docker compose build
+
+# 🚀 Up (stack + chaos auto)
+up:
+  stage: up
+  script:
+    - docker compose up -d
+    - echo "Waiting for services + chaos..."
+    - sleep 40
+
+# 🧪 test normal
+test:
+  stage: test
+  script:
+    - echo "Testing normal app"
+    - curl -f http://localhost:5000 || exit 1
+
+# test chaos
+chaos_test:
+  stage: chaos_test
+  script:
+    - echo "Testing under chaos (toxiproxy)"
+
+    - |
+      TIME=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:8666 || echo "fail")
+
+      echo "Response time: $TIME"
+
+    - |
+      if [ "$TIME" = "fail" ]; then
+        echo "Service unreachable ❌"
+        exit 1
+      fi
+
+# ✅ Verify
+verify:
+  stage: verify
+  script:
+    - echo "Verifying system stability"
+
+    - |
+      TIME=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:8666)
+
+      echo "Latency: $TIME"
+
+    - |
+      awk "BEGIN {exit !($TIME < 6)}" || (echo "Too slow ❌" && exit 1)
+
+    - curl -f http://localhost:8666 || exit 1
+
+# 📊 Observe
+observe:
+  stage: observe
+  script:
+    - echo "Checking metrics from Prometheus"
+    - curl "http://localhost:9090/api/v1/query?query=up"
+
+    - echo "Checking logs from Loki"
+    - curl -s "http://localhost:3100/loki/api/v1/labels" || true
+
+# ♻️ Recovery 
+recovery:
+  stage: recovery
+  script:
+    - echo "Waiting for system recovery..."
+    - sleep 20
+    - curl -f http://localhost:5000 || exit 1
+
+# 📝 Report
+report:
+  stage: report
+  script:
+    - echo "Generating report..."
+
+    - |
+      echo "Chaos Engineering Report" > report.md
+      echo "------------------------" >> report.md
+      echo "✔ System survived chaos" >> report.md
+      echo "✔ Monitoring active" >> report.md
+      echo "✔ Recovery successful" >> report.md
+
+    - cat report.md
+
+  artifacts:
+    paths:
+      - report.md
+
+# 🧹 Cleanup
+cleanup:
+  stage: cleanup
+  script:
+    - docker compose down

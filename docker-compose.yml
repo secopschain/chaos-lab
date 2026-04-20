@@ -1,0 +1,78 @@
+version: "3"
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: app-prometheus-1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml
+    ports:
+      - "9090:9090"
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+
+  loki:
+    image: grafana/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail
+    volumes:
+      - ./promtail.yml:/etc/promtail/promtail.yml
+      - /var/log:/var/log
+
+  alertmanager:
+    image: prom/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+
+  toxiproxy:
+    image: shopify/toxiproxy
+    ports:
+      - "8474:8474"
+      - "8666:8666"
+
+  chaos:
+    image: curlimages/curl
+    depends_on:
+      - toxiproxy
+      - app
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      sleep 10
+
+      curl -X POST http://toxiproxy:8474/proxies \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "flask_proxy",
+          "listen": "0.0.0.0:8666",
+          "upstream": "app:5000"
+        }'
+
+      while true; do
+        curl -X POST http://toxiproxy:8474/proxies/flask_proxy/toxics \
+          -H "Content-Type: application/json" \
+          -d '{
+            "type": "latency",
+            "attributes": { "latency": 2000 }
+          }'
+
+        sleep 20
+
+        curl -X DELETE http://toxiproxy:8474/proxies/flask_proxy/toxics/latency || true
+
+        sleep 10
+      done
+
+  
