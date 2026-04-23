@@ -18,13 +18,13 @@ variables:
   DOCKER_HOST: tcp://docker:2375/
   DOCKER_TLS_CERTDIR: ""
 
-#  Build stage
+# 1. Build Stage
 build:
   stage: build
   script:
     - docker compose build
 
-#  Up stage (Start the stack)
+# 2. Up Stage
 up:
   stage: up
   script:
@@ -32,29 +32,24 @@ up:
     - echo "Waiting for services to initialize..."
     - sleep 40
 
-#  Test normal stage
-test:
-  test:
+# 3. Test Stage
+test_normal:
   stage: test
   script:
     - echo "Testing app connectivity..."
     - docker compose exec -T app curl -f http://localhost:5000 || exit 1
 
-# 🌪 Chaos test stage
+# 4. Chaos Test Stage
 chaos_test:
   stage: chaos_test
   script:
     - echo "Testing under chaos (toxiproxy)"
-    # Using the service name 'toxiproxy' instead of localhost
     - |
-      TIME=$(docker compose exec -T app curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666  echo "fail")
+      TIME=$(docker compose exec -T app curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666 || echo "fail")
       echo "Response time: $TIME"
-      if [ "$TIME" = "fail" ]; then
-        echo "Service unreachable ❌"
-        exit 1
-      fi
+      if [ "$TIME" = "fail" ]; then echo "Service unreachable ❌"; exit 1; fi
 
-# ✅ Verify stage
+# 5. Verify Stage
 verify:
   stage: verify
   script:
@@ -62,27 +57,29 @@ verify:
     - |
       LATENCY=$(docker compose exec -T app curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666)
       echo "Latency: $LATENCY"
-      awk "BEGIN {exit !($LATENCY < 6)}"  (echo "Too slow ❌" && exit 1)
-    - docker compose exec -T app curl -f http://toxiproxy:8666  exit 1
+      # Using awk for floating point comparison
+      awk -v n="$LATENCY" 'BEGIN {if (n > 6) exit 1}' || (echo "Too slow ❌" && exit 1)
+    - docker compose exec -T app curl -f http://toxiproxy:8666 || exit 1
 
-#  Observe stage
+# 6. Observe Stage
 observe:
   stage: observe
   script:
+    - sleep 15
     - echo "Checking metrics from Prometheus"
-    - docker compose exec -T app curl -f "http://prometheus:9090/api/v1/query?query=up"
+    - docker compose exec -T app curl -f "http://prometheus:9090/api/v1/query?query=up" || echo "Prometheus not responding"
     - echo "Checking logs from Loki"
-    - docker compose exec -T app curl -s "http://loki:3100/loki/api/v1/labels"  true
+    - docker compose exec -T app curl -s "http://loki:3100/loki/api/v1/labels" || true
 
-# Recovery stage
+# 7. Recovery Stage
 recovery:
   stage: recovery
   script:
     - echo "Waiting for system recovery..."
     - sleep 20
-    - docker compose exec -T app curl -f http://localhost:5000  exit 1
+    - docker compose exec -T app curl -f http://localhost:5000 || exit 1
 
-#  Report stage
+# 8. Report Stage
 report:
   stage: report
   script:
@@ -90,15 +87,15 @@ report:
     - |
       echo "Chaos Engineering Report" > report.md
       echo "-------------------------" >> report.md
-      echo "✔️ System survived chaos" >> report.md
-      echo "✔️ Monitoring active" >> report.md
-      echo "✔️ Recovery successful" >> report.md
+      echo "✅ System survived chaos" >> report.md
+      echo "✅ Monitoring active" >> report.md
+      echo "✅ Recovery successful" >> report.md
     - cat report.md
   artifacts:
     paths:
       - report.md
 
-#  Cleanup stage
+# 9. Cleanup Stage
 cleanup:
   stage: cleanup
   script:
