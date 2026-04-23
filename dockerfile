@@ -10,24 +10,24 @@ ENV POETRY_VERSION=1.8.2 \
 # 3. Set the working directory inside the container
 WORKDIR /app
 
-# 4. Install system dependencies and Poetry
-RUN apt-get update && apt-get install -y curl && \
-    curl -sSL https://install.python-poetry.org | python3 - && \
-    apt-get purge -y --auto-remove curl && \
-    rm -rf /var/lib/apt/lists/*
+# 4. Install system dependencies (Keeping curl for health checks/tests)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl -sSL https://install.python-poetry.org | python3 - \
+    && rm -rf /var/lib/apt/lists/*
 
-# Add Poetry to the system PATH
+# 5. Add Poetry to the system PATH
 ENV PATH="/root/.local/bin:$PATH"
 
-# 5. Copy dependency management files
+# 6. Copy dependency management files
 COPY pyproject.toml poetry.lock* ./
 
-# 6. Install project dependencies without the root package
+# 7. Install project dependencies
 RUN poetry install --no-root --only main
 
-# 7. Copy the rest of the application code
+# 8. Copy the rest of the application code
 COPY . .
 
-# 8. Expose the port and define the entry point command
+# 9. Expose the port and define the entry point command
 EXPOSE 5000
 CMD ["python", "app.py"]
