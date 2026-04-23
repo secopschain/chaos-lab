@@ -29,8 +29,9 @@ up:
   stage: up
   script:
     - docker compose up -d
-    - echo "Waiting for services to initialize..."
-    - sleep 40
+    - echo "Waiting for all services to be heathly..."
+    - sleep 60
+    - docker compose ps
 
 # 3. Test Stage
 test_normal:
