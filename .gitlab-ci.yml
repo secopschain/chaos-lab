@@ -41,7 +41,7 @@ test:
     - echo "Waiting for services..."
     - sleep 40
     - echo "Testing normal app"
-    - curl -f http://localhost:5000 || exit 1
+    - curl -f http://app:5000 || exit 1
 
 # test chaos
 chaos_test:
