@@ -37,8 +37,9 @@ up:
 test_normal:
   stage: test
   script:
-    - echo "Testing app connectivity..."
-    - docker compose exec -T app curl -f http://localhost:5000 || exit 1
+    - docker compose up -d
+    - sleep 5
+    - curl -f http://app:5000
 
 # 4. Chaos Test Stage
 chaos_test:
@@ -46,7 +47,7 @@ chaos_test:
   script:
     - echo "Testing under chaos (toxiproxy)"
     - |
-      TIME=$(docker compose exec -T app curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666 || echo "fail")
+      TIME=$(docker run --rm --network app_default curlimages/curl curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666 || echo "fail")
       echo "Response time: $TIME"
       if [ "$TIME" = "fail" ]; then echo "Service unreachable ❌"; exit 1; fi
 
@@ -56,11 +57,11 @@ verify:
   script:
     - echo "Verifying system stability"
     - |
-      LATENCY=$(docker compose exec -T app curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666)
+      LATENCY=$(docker run --rm --network app_default curlimages/curl curl -o /dev/null -s -w "%{time_total}" http://toxiproxy:8666)
       echo "Latency: $LATENCY"
       # Using awk for floating point comparison
       awk -v n="$LATENCY" 'BEGIN {if (n > 6) exit 1}' || (echo "Too slow ❌" && exit 1)
-    - docker compose exec -T app curl -f http://toxiproxy:8666 || exit 1
+    - docker run --rm --network app_default curlimages/curl curl -f http://toxiproxy:8666 || exit 1
 
 # 6. Observe Stage
 observe:
@@ -68,9 +69,9 @@ observe:
   script:
     - sleep 15
     - echo "Checking metrics from Prometheus"
-    - docker compose exec -T app curl -f "http://prometheus:9090/api/v1/query?query=up" || echo "Prometheus not responding"
+    - docker run --rm --network app_default curlimages/curl curl -f "http://prometheus:9090/api/v1/query?query=up" || echo "Prometheus not responding"
     - echo "Checking logs from Loki"
-    - docker compose exec -T app curl -s "http://loki:3100/loki/api/v1/labels" || true
+    - docker run --rm --network app_default curlimages/curl curl -s "http://loki:3100/loki/api/v1/labels" || true
 
 # 7. Recovery Stage
 recovery:
@@ -78,7 +79,7 @@ recovery:
   script:
     - echo "Waiting for system recovery..."
     - sleep 20
-    - docker compose exec -T app curl -f http://localhost:5000 || exit 1
+    - docker run --rm --network app_default curlimages/curl curl -f http://app:5000 || exit 1
 
 # 8. Report Stage
 report:
