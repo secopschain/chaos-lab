@@ -47,19 +47,19 @@ services:
     depends_on:
       - toxiproxy
       - app
-    entrypoint: ["/bin/sh", "-c"]
     command: >
+      sh -c "
       sleep 10 &&
-      curl -X POST http://toxiproxy:8474/proxies 
-      -H "Content-Type: application/json" 
-      -d '{"name":"flask_proxy","listen":"0.0.0.0:8666","upstream":"app:5000"}' &&
+      curl -X POST http://toxiproxy:8474/proxies
+      -H 'Content-Type: application/json'
+      -d '{\"name\":\"flask_proxy\",\"listen\":\"0.0.0.0:8666\",\"upstream\":\"app:5000\"}' &&
       while true; do
-        echo "Adding latency...";
-        curl -X POST http://toxiproxy:8474/proxies/flask_proxy/toxics 
-        -H "Content-Type: application/json" 
-        -d '{"type":"latency","attributes":{"latency":2000}}';
+        echo 'Adding latency...';
+        curl -X POST http://toxiproxy:8474/proxies/flask_proxy/toxics
+        -H 'Content-Type: application/json'
+        -d '{\"type\":\"latency\",\"attributes\":{\"latency\":2000}}';
         sleep 20;
-        echo "Removing latency...";
+        echo 'Removing latency...';
         curl -X DELETE http://toxiproxy:8474/proxies/flask_proxy/toxics/latency || true;
         sleep 10;
-      done
+      done"
