@@ -39,8 +39,10 @@ test_normal:
   script:
     - docker compose up -d
     - sleep 5
-    - docker network ls
-    - docker run --rm --network app_default curlimages/curl curl -f http://app:5000
+    - NETWORK=$(docker network ls --format "{{.Name}}" | grep -v "bridge\|host\|none" | head -1)
+    - echo "Network: $NETWORK"
+    - docker run --rm --network $NETWORK curlimages/curl curl -f http://app:5000
+
 # 4. Chaos Test Stage
 chaos_test:
   stage: chaos_test
