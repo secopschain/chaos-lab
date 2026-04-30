@@ -39,7 +39,7 @@ test_normal:
   script:
     - docker compose up -d
     - sleep 5
-    - curl -f http://app:5000
+    - docker run --rm --network app_default curlimages/curl curl -f http://app:5000
 
 # 4. Chaos Test Stage
 chaos_test:
@@ -79,7 +79,7 @@ recovery:
   script:
     - echo "Waiting for system recovery..."
     - sleep 20
-    - docker run --rm --network app_default curlimages/curl curl -f http://app:5000 || exit 1
+    - docker run --rm --network app_default curlimages/curl docker run --rm --network app_default curlimages/curl curl -f http://app:5000 || exit 1
 
 # 8. Report Stage
 report:
