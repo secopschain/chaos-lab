@@ -39,8 +39,9 @@ test_normal:
   script:
     - docker compose up -d
     - sleep 5
+    - docker network ls
     - docker run --rm --network app_default curlimages/curl docker run --rm --network app_default curlimages/curl docker run --rm --network app_default curlimages/curl curl -f http://app:5000
-
+    - docker ps
 # 4. Chaos Test Stage
 chaos_test:
   stage: chaos_test
